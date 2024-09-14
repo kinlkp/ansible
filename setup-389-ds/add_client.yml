@@ -1,0 +1,81 @@
+# Configure RHEL 8, 9 as an LDAP Client using SSSD
+# https://access.redhat.com/solutions/4356441
+---
+- hosts: dir_clients
+  vars_files:
+    - vars.yml
+
+  tasks:
+  - name: check OS version
+    fail:
+    when: 
+    - ansible_distribution_major_version != '8'
+    - ansible_distribution_major_version != '9'
+
+  - name: Check if root CA exists or not in ansible managed node
+    ansible.builtin.stat:
+      path: rootCA.crt
+    delegate_to: 127.0.0.1
+    register: stat_result
+
+  - fail:
+      msg: "root CA does not exist."
+    when: not stat_result.stat.exists
+
+  - name: Install the necessary packages for LDAP client setup
+    yum:
+      name: "{{ item }}"
+      state: present
+    loop:
+      - openldap-clients 
+      - sssd 
+      - sssd-ldap 
+      - oddjob-mkhomedir 
+      - openssl-perl
+
+  - name: Add sssd.conf
+    template:
+      src: client/sssd.conf.j2
+      dest: /etc/sssd/sssd.conf
+      mode: 0600
+      owner: root
+      group: root
+
+  - name: Copy template to ldap.conf
+    template:
+      src: client/ldap.conf.j2
+      dest: /etc/openldap/ldap.conf
+
+  - ansible.builtin.file:
+      path: "{{ item }}"
+      state: directory
+    loop:
+      - /etc/openldap
+      - /etc/openldap/certs
+
+  # OS level root CA
+  # /etc/pki/ca-trust/source/anchors/
+  # update-ca-trust
+  - name: Copy root CA certificate to /etc/openldap/certs
+    ansible.builtin.copy:
+      src: rootCA.crt
+      dest: /etc/openldap/certs
+
+  - name: Rehash the certificate
+    ansible.builtin.command: "openssl rehash /etc/openldap/certs"
+
+  - name: Run commands
+    shell: |
+      authselect select sssd with-mkhomedir --force
+      systemctl enable sssd.service --now
+      systemctl enable oddjobd.service --now
+
+  - name: Verify the LDAP connection
+    shell: |
+      ldapsearch -H ldaps://{{ fqdn }}:636 -D "{{ binddn }}" -w "{{ password }}" -b "{{ ldap_suffix }}"
+    register: ldap_search
+
+  - name: LDAP veriification output
+    fail:
+      msg: "LDAP connection is not okay."
+    when: ldap_search.rc != 0

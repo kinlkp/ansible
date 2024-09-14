@@ -1,0 +1,7 @@
+---
+- hosts: nodes
+  tasks:
+  - name: add repository
+    debug:
+      msg: "i am ok {{ groups['masters'] }}"
+    when: inventory_hostname in groups['masters'] and inventory_hostname != groups['masters'][0]

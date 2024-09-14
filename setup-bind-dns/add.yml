@@ -1,0 +1,11 @@
+---
+- hosts: bind
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - fail:
+        msg: "domain is not defined."
+      when: not domain
+      
+    - include_tasks: addzone.yml

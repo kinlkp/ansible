@@ -1,0 +1,38 @@
+---
+- hosts: awx
+  vars_files:
+    - vars.yml
+  become: true
+  become_user: root
+
+  tasks:
+    - name: Check OS distribution
+      fail:
+        msg: "The Linux distribution is not Ubuntu"
+      when: ansible_distribution != "Ubuntu"
+
+    - name: Install microk8s on ubuntu
+      shell: |
+        snap install microk8s --classic
+
+    - name: Check the status
+      shell: |
+        microk8s status --wait-ready
+
+    - name: Enable services
+      shell: |
+        microk8s enable dns
+        microk8s enable helm
+
+    - name: Add repository
+      shell: |
+        microk8s helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm/
+
+    - name: Install AWX operator
+      shell: |
+        microk8s helm install ansible-awx-operator awx-operator/awx-operator -n awx --create-namespace
+
+    - name: Create a folder for AWX
+      shell: |
+        mkdir /root/awx
+        chmod 1777 /root/awx

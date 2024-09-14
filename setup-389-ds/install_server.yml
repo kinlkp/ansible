@@ -1,0 +1,117 @@
+---
+- hosts: ds1, ds2
+  serial: 1 
+  vars_files:
+    - vars.yml
+
+  tasks:
+  - name: check OS version
+    fail:
+    when: 
+    - ansible_distribution_major_version != '8'
+    - ansible_distribution_major_version != '9'
+
+  # Generate the self-signed certificate
+  - ansible.builtin.include_tasks: server/create-self-signed.yml
+
+  - name: Enable project 389 Directory Server
+    ansible.builtin.shell: |
+      dnf -y copr enable @389ds/389-directory-server
+
+  - name: Install 389 DS package
+    ansible.builtin.yum:
+      name: 389-ds-base
+      state: present
+
+  - name: Create template for instance
+    ansible.builtin.template:
+      src: server/instance.inf.j2
+      dest: /tmp/instance.inf
+
+  - name: Create ldap instance
+    shell: |
+      dscreate from-file /tmp/instance.inf
+
+  - name: Permit traffic in default zone on port 389 and 636
+    ansible.posix.firewalld:
+      port: "{{ item}}/tcp"
+      permanent: true
+      state: enabled
+    loop:
+      - 389
+      - 636
+  
+  - name: Reload the firewalld
+    ansible.builtin.shell: |
+      firewall-cmd --reload
+
+  - name: Enable service dirsrv
+    ansible.builtin.service:
+      name: dirsrv.target
+      state: started
+      enabled: true
+
+  - name: Create template for instance
+    ansible.builtin.template:
+      src: server/dsrc.j2
+      dest: "{{ home }}/.dsrc"
+
+  - name: Check ldap server status
+    ansible.builtin.command: "dsctl {{ instance_name }} status"
+    register: output
+
+  - debug:
+      msg: "{{ output }}"
+
+  - name: List ldap users
+    ansible.builtin.command: "dsidm {{ instance_name }} user list"
+    register: output
+
+  - name: List ldap users
+    debug:
+      msg: "{{ output }}"
+
+  - name: Import the server certificate issued by the CA to the NSS database
+    command: "dsctl localhost tls import-server-key-cert /etc/ssl/domain.crt /etc/ssl/domain.key"
+
+  - name: Import the CA certificate to the NSS database
+    shell: |
+      dsconf -D "cn=Directory Manager" -w {{ password }} ldap://{{ fqdn }} security \
+      ca-certificate add --file /etc/ssl/rootCA-{{ fqdn }}.crt --name "rootCA-{{ fqdn }}"
+
+  - name: Set the trust flags of the CA certificate
+    shell: |
+      dsconf -D "cn=Directory Manager" -w {{ password }} ldap://{{ fqdn }} security \
+      ca-certificate set-trust-flags "rootCA-{{ fqdn }}" --flags "CT,,"
+
+  - name: Enable TLS and set the LDAPS port
+    shell: |
+      dsconf -D "cn=Directory Manager" -w {{ password }} ldap://{{ fqdn }} config replace \
+      nsslapd-securePort=636 nsslapd-security=on
+
+  - name: Open firewall ports
+    shell: |
+      firewall-cmd --permanent --add-port=636/tcp --add-port=389/tcp
+      firewall-cmd --reload
+
+  - name: Enable the RSA cipher family, set the NSS database security device, and the server certificate name
+    shell: |
+      dsconf -D "cn=Directory Manager" -w {{ password }} ldap://{{ fqdn }} security rsa \
+      set --tls-allow-rsa-certificates on --nss-token "internal (software)" --nss-cert-name Server-Cert
+
+  # - name: Disable the plain text LDAP port
+  #   shell: |
+  #     dsconf {{ instance_name }} security disable_plain_port
+
+  - name: Adding the CA certificate used by Directory Server to the trust store of Red Hat Enterprise Linux
+    shell: |
+      cp /etc/ssl/rootCA-{{ fqdn }}.crt /etc/pki/ca-trust/source/anchors/
+      update-ca-trust
+
+  - name: Restart DS instance
+    shell: |
+      dsctl {{ instance_name }} restart
+
+  - name: Disable plain port
+    debug:
+      msg: "Disble palin port using command: dsconf {{ instance_name }} security disable_plain_port"

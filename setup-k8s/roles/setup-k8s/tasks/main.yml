@@ -1,0 +1,29 @@
+---
+## tasks file for setup-k8s
+#- include_tasks: yum_update.yml
+
+- include_tasks: add_config.yml
+
+- include_tasks: setup_containerd.yml
+
+- include_tasks: manage_fw.yml # rebooting vm in disable_fw.yml
+
+- include_tasks: install_k8s.yml
+
+- name: kubeadm init the cluster
+  include_tasks: init_k8s.yml
+  when: inventory_hostname == groups['masters'][0]
+
+- name: run join command in clients
+  command: "{{ hostvars[groups['masters'][0]]['client_join_cmd'].stdout }}"
+  when:  inventory_hostname in groups['workers']
+
+- name: master generate new certificate key
+  shell: |
+     kubeadm init phase upload-certs --upload-certs 2>/dev/null | tail -1
+  register: cert_key
+  when: inventory_hostname == groups['masters'][0]
+
+- name: run join command in other masters
+  command: "{{ hostvars[groups['masters'][0]]['client_join_cmd'].stdout }}  --control-plane --certificate-key {{ hostvars[groups['masters'][0]]['cert_key'].stdout }}"
+  when: inventory_hostname in groups['masters'] and inventory_hostname != groups['masters'][0]
