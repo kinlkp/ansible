@@ -1,0 +1,57 @@
+---
+- hosts: all
+  become: true
+  any_errors_fatal: true
+  vars_files:
+    - vars.yaml
+  tasks:
+    - name: Install npm environment
+      ansible.builtin.shell: |
+        curl -o- "{{ nvm_download_url }}" | bash
+        source ~/.nvm/nvm.sh
+        nvm install "{{ node_ver }}"
+      args:
+        executable: /usr/bin/bash
+
+    # - name: clone git repository
+    #   ansible.builtin.shell: |
+    #     GIT_SSH_COMMAND="ssh -i ~/.ssh/{{ github_priv_key }} -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" \
+    #       git clone --single-branch --branch "{{ branch }}" "{{ github_url }}/{{ item }}.git"
+    #   loop: "{{ app_name }}"
+
+    - name: Run npm install
+      ansible.builtin.shell: |
+        source ~/.nvm/nvm.sh
+        cd "{{ root_path }}/{{ item }}/main/"
+        rm -rf node_modules package-lock.json
+        echo '@pycom:registry=https://npm.pkg.github.com' > .npmrc
+        echo '//npm.pkg.github.com/:_authToken=TOKEN' >> .npmrc
+        sed -i "s/TOKEN/{{ github_token }}/" .npmrc
+        nice -10 npm install
+      args:
+        executable: /usr/bin/bash
+      loop: "{{ projects }}"
+
+    - name: Run npm build
+      ansible.builtin.shell: |
+        source ~/.nvm/nvm.sh
+        cd "{{ root_path }}/{{ item }}/main/"
+        nice -10 npm run build
+      args:
+        executable: /usr/bin/bash
+      loop: "{{ projects }}"
+
+    - name: Create start app script
+      ansible.builtin.template:
+        src: start_app.j2
+        dest: "{{ root_path }}/{{ item }}/main/start_app.sh"
+        mode: '0755'
+      loop: "{{ projects }}"
+
+    - name: Archive the project folder
+      ansible.builtin.shell: |
+        cd "{{ root_path }}/{{ item }}/main"
+        tar cf ../{{app_env}}-{{item}}.tar .
+      loop: "{{ projects }}"
+
+

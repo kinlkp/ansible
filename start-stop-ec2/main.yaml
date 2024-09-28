@@ -1,0 +1,20 @@
+---
+- hosts: all
+  vars_files:
+    - vars.yaml
+  tasks:
+    - name: stop a particular instance by its ID
+      amazon.aws.ec2_instance:
+        state: stopped
+        instance_ids: "{{ ec2_instances }}"
+      environment:
+        AWS_PROFILE: "{{ aws_profile }}"
+      when: ansible_date_time.hour == "{{ shutdown_time }}" and ( ansible_date_time.weekday_number != "0" or ansible_date_time.weekday_number != "6")
+
+    - name: start a particular instance by its ID
+      amazon.aws.ec2_instance:
+        state: started
+        instance_ids: "{{ ec2_instances }}"
+      environment:
+        AWS_PROFILE: "{{ aws_profile }}"
+      when: ansible_date_time.hour == "{{ start_time }}" and ( ansible_date_time.weekday_number != "0" or ansible_date_time.weekday_number != "6")

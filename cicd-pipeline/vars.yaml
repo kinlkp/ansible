@@ -1,0 +1,4 @@
+nvm_download_url: "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh"
+node_ver: 18
+github_priv_key: "id_rsa_github"
+github_url: "git@github.com:pycom"

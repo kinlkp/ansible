@@ -1,0 +1,14 @@
+---
+- hosts: all
+  vars_files:
+    - vars.yaml
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Remove the clone repo
+      ansible.builtin.shell: |
+        rm -rf "{{ root_path }}/{{ item }}/main"
+      loop: "{{ projects }}"
+
+    - debug:
+        msg: "{{ gateway }}"

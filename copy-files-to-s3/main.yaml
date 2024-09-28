@@ -1,0 +1,54 @@
+---
+- hosts: all
+  any_errors_fatal: true
+  max_fail_percentage: 1
+  gather_facts: true
+  vars_files: 
+    - vars.yaml
+  become: true
+
+  tasks:
+  - block:
+      # Create dir_file_map
+      # [{"dir": "/home","new_dir": "2024-09-20_home"},{"dir": "/etc","new_dir": "2024-09-20_etc"}]
+    - ansible.builtin.set_fact:
+        dir_file_map: "{{ dir_file_map | default([]) + [{'dir':item, 'new_dir': '_'.join(['%Y-%m-%d' | strftime, item|regex_replace('\\W+','')])}] }}"
+      loop: "{{ src_dirs }}"
+
+    - name: rsync directory source folders to /var/tmp
+      ansible.builtin.shell: |
+        cd /
+        rsync -avzrog {{ exclude_files }} {{ item.dir }}/* /var/tmp/{{ item.new_dir }}
+      loop: "{{ dir_file_map }}"
+
+    - name: tar the dest folders
+      ansible.builtin.shell: |
+        cd /var/tmp/{{ item.new_dir }}
+        tar czf ../{{ item.new_dir }}.tar.gz .
+        cd ..
+        rm -rf {{ item.new_dir }}
+      loop: "{{ dir_file_map }}"
+
+    - name: Install boto3 and botocore
+      ansible.builtin.package:
+        name: "{{ item }}"
+      loop:
+        - python3-boto3
+        - python3-botocore
+
+    - name: Put the backup objects in s3
+      amazon.aws.s3_object:
+        bucket: "sgwireless-backups"
+        object: "{{ inventory_hostname }}/{{ item.new_dir }}.tar.gz"
+        src: "/var/tmp/{{ item.new_dir }}.tar.gz"
+        mode: put
+      loop: "{{ dir_file_map }}"
+    
+    always:
+      - name: Remove file (delete file)
+        ansible.builtin.file:
+          path: "/var/tmp/{{ item.new_dir }}.tar.gz"
+          state: absent
+        loop: "{{ dir_file_map }}"
+
+          
