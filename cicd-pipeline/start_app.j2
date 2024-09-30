@@ -1,0 +1,12 @@
+#!/bin/bash
+
+export APP_ENV={{ app_env }}
+export APP_NAME={{ item }}
+export CONFIG_PROVIDER=AWS
+export NODE_ENV={{ node_env }}
+export S3_BUCKET_REGION=eu-west-3
+export TENANT=ctrl
+export AWS_PROFILE=pycom
+export NODE_OPTIONS="--max-old-space-size=4096"
+
+npm run start

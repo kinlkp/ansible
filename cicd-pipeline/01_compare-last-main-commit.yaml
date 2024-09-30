@@ -8,8 +8,15 @@
   tasks:
     - name: Check the previous commit file
       ansible.builtin.shell: |
-        test -f "{{ root_path }}/{{ item }}/last-main-commit"
+        test -f "{{ root_path }}/last-main-commits.json"
+
+    - name: Get the content of json
+      command: jq -r '."{{ item }}"' {{ root_path }}/last-main-commits.json
+      register: json_str
       loop: "{{ projects }}"
+
+    - set_fact:
+        json_str: "{{ json_str['results'][0]['stdout'] }}"
 
     - name: Clone the main branches
       ansible.builtin.git:
@@ -36,16 +43,7 @@
       loop: "{{ main_commit['results'] }}"
 
     - name: Compare current commit with last-main-commit
-      ansible.builtin.shell: |
-        last_commit=$(cat {{ root_path }}/{{ item.item }}/last-main-commit)
-        if [ "$last_commit" == "{{ item.stdout }}" ]
-        then
-          exit 1  # main commit no diff so stop build and deploy.
-        else
-          exit 0
-        fi
-      args:
-        executable: /usr/bin/bash
+      fail:
+        msg: "main branch commit == commit in last-main-commits.json. No deployment."
+      when: item.stdout == json_str
       loop: "{{ main_commit['results'] }}"
-      loop_control:
-        label: "rc"

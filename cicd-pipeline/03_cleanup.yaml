@@ -10,5 +10,13 @@
         rm -rf "{{ root_path }}/{{ item }}/main"
       loop: "{{ projects }}"
 
-    - debug:
-        msg: "{{ gateway }}"
+    - name: update the json file for next comparion
+      ansible.builtin.lineinfile:
+        path: "{{ root_path }}/last-main-commits.json"
+        regexp: '^(\s+"{{ item }}":\s)(.*)'
+        line: '\1"{{ gateway }}"'
+        backrefs: yes
+      loop: "{{ projects }}"
+
+    - name: Check file format
+      command: jq . "{{ root_path }}/last-main-commits.json"

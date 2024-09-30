@@ -1,6 +1,7 @@
 ---
 - hosts: all
   become: true
+  gather_facts: false
   any_errors_fatal: true
   vars_files:
     - vars.yaml
@@ -51,7 +52,7 @@
     - name: Archive the project folder
       ansible.builtin.shell: |
         cd "{{ root_path }}/{{ item }}/main"
-        tar cf ../{{app_env}}-{{item}}.tar .
+        tar zcf ../{{app_env}}-{{item}}.tar.gz .
       loop: "{{ projects }}"
 
 
