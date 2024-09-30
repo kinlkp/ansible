@@ -1,0 +1,41 @@
+---
+- hosts: all
+  vars_files:
+    - vars.yml
+  become: true
+  become_user: root
+
+  tasks:
+    - name: Check OS distribution
+      fail:
+        msg: "The Linux distribution is not Ubuntu"
+      when: ansible_distribution != "Ubuntu"
+
+    - name: List files in /tmp
+      stat:
+        path: "{{ item }}"
+      register: stat_result
+      loop: "{{ files }}"
+
+    - name: scp files to destination host
+      ansible.builtin.shell: |
+        rsync -avz -q -e \
+          "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i {{ priv_key_in_os }}" \
+          {{ item.stat.path }} {{ username }}@{{ dest.host }}:{{ dest.folder }}
+      loop: "{{ stat_result['results'] }}"
+
+    - name: Create an array of urls
+      set_fact:
+        urls: "{{ urls | default([]) + ['http://' + dest.host  + '/awx/' +  item.stat.path | regex_replace('^(\/tmp.*\/)([^\/]*)$', '\\2')] }}"
+      loop: "{{ stat_result['results'] }}" 
+
+    - name: Check file from url
+      ansible.builtin.uri:
+        url: "{{ item }}"
+      register: result
+      failed_when: result.status != 200
+      loop: "{{ urls }}" 
+
+    - name: Print the URLs
+      debug:
+        msg: "{{ urls }}"

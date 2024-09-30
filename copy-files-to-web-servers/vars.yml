@@ -1,0 +1,3 @@
+username: "ubuntu"
+priv_key_in_os: ".ssh/id_rsa_3"
+urls: []
