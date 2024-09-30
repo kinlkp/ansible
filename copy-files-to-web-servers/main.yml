@@ -18,9 +18,9 @@
       loop: "{{ files }}"
 
     - name: rsync files from stage to destination host
-      ansible.builtin.shell: |
-        rsync -avz -q -e \
-          "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i {{ priv_key_in_os }}" \
+      ansible.builtin.shell: >
+        rsync -avz -q -e 
+          "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i {{ priv_key_in_os }}" 
           {{ item.stat.path }} {{ username }}@{{ dest.host }}:{{ dest.folder }}
       loop: "{{ stat_result['results'] }}"
 
