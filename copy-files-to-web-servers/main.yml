@@ -17,7 +17,7 @@
       register: stat_result
       loop: "{{ files }}"
 
-    - name: scp files to destination host
+    - name: rsync files from stage to destination host
       ansible.builtin.shell: |
         rsync -avz -q -e \
           "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i {{ priv_key_in_os }}" \
