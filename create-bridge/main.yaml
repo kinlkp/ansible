@@ -1,0 +1,9 @@
+---
+- hosts: all
+  vars_files:
+    - vars.yaml
+
+  tasks:
+    - name: test
+      debug:
+        msg: "i am ok"
