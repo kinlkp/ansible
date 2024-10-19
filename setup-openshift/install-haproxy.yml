@@ -13,7 +13,7 @@
 - name: Install haproxy package
   ansible.builtin.yum:
     name: haproxy
-    state: present
+    state: latest
 
 # - name: Fail the task when ssh public key is not defined
 #   ansible.builtin.fail:
